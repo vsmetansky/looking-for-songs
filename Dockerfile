@@ -15,8 +15,7 @@ WORKDIR /app
 # Only the manifests, so this layer stays cached until dependencies change.
 # --no-install-project: the project has no build-system, it runs from source.
 COPY pyproject.toml uv.lock ./
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-install-project
+RUN uv sync --frozen --no-dev --no-install-project
 
 
 # Runtime stage: just the venv and the source, no uv and no build cache.

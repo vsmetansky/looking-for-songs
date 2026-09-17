@@ -112,6 +112,9 @@ else
 fi
 
 step "Granting project roles to deployer"
+# servicemanagement.admin covers servicemanagement.services.bind, needed to
+# enable the generated managed service. serviceConsumer holds only that one
+# permission and would be narrower, but it is not grantable at project scope.
 for role in \
   roles/run.admin \
   roles/apigateway.admin \
@@ -119,6 +122,7 @@ for role in \
   roles/iam.serviceAccountUser \
   roles/serviceusage.serviceUsageAdmin \
   roles/serviceusage.apiKeysAdmin \
+  roles/servicemanagement.admin \
   roles/secretmanager.admin \
   roles/artifactregistry.writer
 do

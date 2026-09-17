@@ -1,0 +1,66 @@
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Required for Workload Identity Federation: the job exchanges this OIDC
+# token for GCP credentials, so no service account key is ever stored.
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  REGION: ${{ vars.GCP_REGION }}
+  SERVICE: looking-for-songs
+  STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+
+concurrency:
+  # Two applies against one state file will fight over the lock.
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.DEPLOYER_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build and push image
+        id: image
+        run: |
+          IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${SERVICE}/${SERVICE}:${GITHUB_SHA}"
+          gcloud builds submit --tag "$IMAGE" --quiet
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      - name: Terraform init
+        working-directory: terraform
+        run: terraform init -backend-config="bucket=${STATE_BUCKET}"
+
+      - name: Terraform apply
+        working-directory: terraform
+        run: |
+          terraform apply -auto-approve -input=false \
+            -var="project_id=${PROJECT_ID}" \
+            -var="region=${REGION}" \
+            -var="service_name=${SERVICE}" \
+            -var="image=${{ steps.image.outputs.image }}"
+
+      - name: Summary
+        working-directory: terraform
+        run: |
+          echo "Gateway: $(terraform output -raw gateway_url)" >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,34 @@
+swagger: "2.0"
+info:
+  title: ${api_title}
+  description: Look up a song's link on a streaming platform.
+  version: "1.0.0"
+schemes:
+  - https
+produces:
+  - application/json
+paths:
+  /api/look:
+    post:
+      summary: Look up a song link
+      operationId: look
+      x-google-backend:
+        address: ${backend_url}/api/look
+        # Audience must be the service root, not the path, or Cloud Run
+        # rejects the gateway's ID token.
+        jwt_audience: ${backend_url}
+        deadline: 30.0
+      security:
+        - api_key: []
+      responses:
+        "200":
+          description: A link to the song
+        "401":
+          description: Missing or invalid API key
+        "404":
+          description: No match on that platform
+securityDefinitions:
+  api_key:
+    type: "apiKey"
+    name: "key"
+    in: "query"

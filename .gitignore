@@ -1,0 +1,14 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Secrets
+.env
+
+# Terraform: provider binaries and any local state. The lock file is
+# committed on purpose so CI resolves the same provider versions.
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars

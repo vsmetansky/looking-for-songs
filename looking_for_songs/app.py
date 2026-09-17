@@ -48,12 +48,12 @@ async def look(request: Request) -> JSONResponse:
         logger.warning("%s lookup failed: %s", platform, exc)
         raise HTTPException(502, detail=f"{platform} could not be reached") from exc
 
-    logger.info("Found %s by %s on %s, link: %s", name, artist, platform, link)
-
     if link is None:
         raise HTTPException(
             404, detail=f'"{name}" by {artist} was not found on {platform}'
         )
+    else:
+        logger.info("Found %s by %s on %s, link: %s", name, artist, platform, link)
 
     return JSONResponse({"link": link})
 

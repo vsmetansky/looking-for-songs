@@ -80,6 +80,10 @@ resource "google_cloud_run_v2_service" "app" {
         # service to instance-based billing, charging for the whole instance
         # lifetime instead of only while requests are in flight.
         cpu_idle = true
+
+        # Extra CPU during container startup, billed only for that window.
+        # Cuts the ~1.5s cold start that a scale-from-zero request pays.
+        startup_cpu_boost = true
       }
 
       env {

@@ -36,11 +36,15 @@ jobs:
 
       - uses: google-github-actions/setup-gcloud@v2
 
+      # Built on the runner rather than via Cloud Build: no source-staging
+      # bucket to grant access to, and one less service in the path.
       - name: Build and push image
         id: image
         run: |
           IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${SERVICE}/${SERVICE}:${GITHUB_SHA}"
-          gcloud builds submit --tag "$IMAGE" --quiet
+          gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
           echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
 
       - uses: hashicorp/setup-terraform@v3

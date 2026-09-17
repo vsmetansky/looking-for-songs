@@ -78,7 +78,6 @@ gcloud services enable \
   storage.googleapis.com \
   secretmanager.googleapis.com \
   artifactregistry.googleapis.com \
-  cloudbuild.googleapis.com \
   --quiet
 
 PROJECT_NUMBER="$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')"
@@ -121,8 +120,7 @@ for role in \
   roles/serviceusage.serviceUsageAdmin \
   roles/serviceusage.apiKeysAdmin \
   roles/secretmanager.admin \
-  roles/artifactregistry.writer \
-  roles/cloudbuild.builds.editor
+  roles/artifactregistry.writer
 do
   retry 12 bind_project_role "$role"
   printf '    %s\n' "$role"
@@ -133,11 +131,6 @@ retry 12 gcloud storage buckets add-iam-policy-binding "gs://${STATE_BUCKET}" \
   --member="serviceAccount:${SA_EMAIL}" \
   --role=roles/storage.objectAdmin
 printf '    roles/storage.objectAdmin (on gs://%s only)\n' "$STATE_BUCKET"
-
-# Cloud Build's own service account pushes the image.
-gcloud projects add-iam-policy-binding "$PROJECT_ID" \
-  --member="serviceAccount:${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com" \
-  --role=roles/artifactregistry.writer --condition=None --quiet >/dev/null
 
 step "Workload Identity pool: ${POOL_ID}"
 if gcloud iam workload-identity-pools describe "$POOL_ID" --location=global >/dev/null 2>&1; then

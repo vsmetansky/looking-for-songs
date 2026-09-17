@@ -75,6 +75,11 @@ resource "google_cloud_run_v2_service" "app" {
           cpu    = "1"
           memory = "512Mi"
         }
+        # Must be explicit. Setting `resources` at all makes Cloud Run require
+        # this flag to keep request-based billing; omitting it switches the
+        # service to instance-based billing, charging for the whole instance
+        # lifetime instead of only while requests are in flight.
+        cpu_idle = true
       }
 
       env {

@@ -37,6 +37,8 @@ async def look(request: Request) -> JSONResponse:
             400, detail=f"Supported platforms: {', '.join(SUPPORTED_PLATFORMS)}"
         )
 
+    logger.info("Looking for %s by %s on %s", name, artist, platform)
+
     try:
         link = await s.search(artist, name, platform)
     except errors.ConfigurationError as exc:
@@ -45,6 +47,8 @@ async def look(request: Request) -> JSONResponse:
     except errors.UpstreamError as exc:
         logger.warning("%s lookup failed: %s", platform, exc)
         raise HTTPException(502, detail=f"{platform} could not be reached") from exc
+
+    logger.info("Found %s by %s on %s, link: %s", name, artist, platform, link)
 
     if link is None:
         raise HTTPException(

@@ -181,6 +181,12 @@ resource "google_api_gateway_gateway" "gateway" {
 resource "google_project_service" "managed_api" {
   service            = google_api_gateway_api.api.managed_service
   disable_on_destroy = false
+
+  # The generated service config can take many minutes to become visible to
+  # Service Usage after the API config is created. Depending on the gateway
+  # pushes this attempt as late as possible in the graph; if it still races,
+  # the fix is to re-run the apply, not to enable it by hand.
+  depends_on = [google_api_gateway_gateway.gateway]
 }
 
 resource "google_apikeys_key" "gateway_key" {

@@ -25,3 +25,9 @@ variable "max_instances" {
   description = "Hard ceiling on scale-out. This is the cost cap; keep it small."
   default     = 1
 }
+
+variable "keep_warm_schedule" {
+  type        = string
+  description = "Cron for the keep-warm ping. Cloud Run's idle retention is undocumented but observed around 15m, so 5m leaves roughly 3x margin."
+  default     = "*/5 * * * *"
+}

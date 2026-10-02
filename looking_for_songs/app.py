@@ -58,6 +58,15 @@ async def look(request: Request) -> JSONResponse:
     return JSONResponse({"link": link})
 
 
+async def health(request: Request) -> JSONResponse:
+    """Liveness probe for the keep-warm pinger in terraform/main.tf.
+
+    Deliberately does no work: it must not touch Spotify, or keeping the
+    instance warm would cost ~8.6k pointless token fetches a month.
+    """
+    return JSONResponse({"status": "ok"})
+
+
 def _required_str(body: dict[Any, Any], key: str, detail: str) -> str:
     """Read a non-empty string field, rejecting missing and non-string values alike."""
     value = body.get(key)
@@ -70,7 +79,10 @@ def run() -> None:
     import uvicorn
 
     app = Starlette(
-        routes=[Route("/api/look", look, methods=["POST"])],
+        routes=[
+            Route("/api/look", look, methods=["POST"]),
+            Route("/health", health, methods=["GET"]),
+        ],
     )
     logging.basicConfig(level=logging.INFO)
     host = os.environ.get("HOST", "127.0.0.1")

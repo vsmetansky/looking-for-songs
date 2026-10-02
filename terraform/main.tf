@@ -7,6 +7,7 @@ locals {
     "servicemanagement.googleapis.com",
     "servicecontrol.googleapis.com",
     "apikeys.googleapis.com",
+    "cloudscheduler.googleapis.com",
   ]
 }
 
@@ -204,4 +205,59 @@ resource "google_apikeys_key" "gateway_key" {
   }
 
   depends_on = [google_project_service.managed_api]
+}
+
+# ---------------------------------------------------------------------------
+# Keep-warm pinger
+# ---------------------------------------------------------------------------
+# Cloud Run bills request-based services only during billed instance time, and
+# keeps an instance alive for a while after a request at no charge. Re-trigger
+# that free retention on a cron and users stop paying the cold-start cost,
+# without the ~$2.40/mo an idle `min_instance_count = 1` would bill.
+#
+# This is best-effort by design: the retention window is undocumented, so a
+# deploy or a zone rebalance still produces the occasional cold start. Set
+# min_instance_count above to 1 if that is not good enough.
+
+resource "google_service_account" "pinger" {
+  account_id   = "${var.service_name}-ping"
+  display_name = "Keep-warm pinger for ${var.service_name}"
+}
+
+# Second identity allowed to call Cloud Run, alongside the gateway's.
+resource "google_cloud_run_v2_service_iam_member" "pinger_invokes_app" {
+  name     = google_cloud_run_v2_service.app.name
+  location = google_cloud_run_v2_service.app.location
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${google_service_account.pinger.email}"
+}
+
+resource "google_cloud_scheduler_job" "keep_warm" {
+  name        = "${var.service_name}-keep-warm"
+  description = "Pings /health so the sole instance stays warm between requests."
+  schedule    = var.keep_warm_schedule
+  time_zone   = "Etc/UTC"
+  region      = var.region
+
+  # A ping that sits through a cold start has already missed the point; give up
+  # and let the next tick cover it rather than holding the instance open.
+  attempt_deadline = "30s"
+
+  retry_config {
+    retry_count = 1
+  }
+
+  http_target {
+    http_method = "GET"
+    uri         = "${google_cloud_run_v2_service.app.uri}/health"
+
+    # Audience is the service root, not the path, or Cloud Run rejects the
+    # token -- same constraint as jwt_audience in openapi.yaml.tftpl.
+    oidc_token {
+      service_account_email = google_service_account.pinger.email
+      audience              = google_cloud_run_v2_service.app.uri
+    }
+  }
+
+  depends_on = [google_project_service.required]
 }

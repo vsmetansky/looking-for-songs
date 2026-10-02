@@ -29,11 +29,16 @@ async def _search(
     c: httpx.AsyncClient, access_token: str, artist: str, name: str
 ) -> str | None:
     """Return the link to the first matching track, or None if there is none."""
-    # Field filters keep artist and title from bleeding into each other.
     # Quotes are stripped so they can't terminate the filter early.
-    query = (
-        f'track:"{name.replace(chr(34), "")}" artist:"{artist.replace(chr(34), "")}"'
-    )
+    track = name.replace('"', "")
+    # Apple Music might include feat in track title,
+    # e.g. instead of "Marechia" it will have "Marechia (with Celia Kameni)",
+    # remove feat here!
+    track = track.rstrip('(')
+
+    performer = artist.replace('"', "")
+
+    query = f'track:"{track}" artist:"{performer}"'
 
     try:
         response = await c.get(

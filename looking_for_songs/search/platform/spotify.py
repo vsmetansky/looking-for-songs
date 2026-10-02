@@ -1,3 +1,4 @@
+import logging
 import os
 
 import httpx
@@ -6,6 +7,8 @@ from looking_for_songs.search.platform import errors
 
 TOKEN_URL = "https://accounts.spotify.com/api/token"
 SEARCH_URL = "https://api.spotify.com/v1/search"
+
+logger = logging.getLogger(__name__)
 
 
 async def search(artist: str, name: str) -> str | None:
@@ -43,7 +46,11 @@ async def _search(
 
     try:
         response.raise_for_status()
-        items = response.json()["tracks"]["items"]
+        response_json = response.json()
+
+        logger.info(response_json)
+
+        items = response_json["tracks"]["items"]
     except httpx.HTTPError as exc:
         raise errors.UpstreamError(f"spotify search failed: {exc}") from exc
     except (KeyError, TypeError, ValueError) as exc:

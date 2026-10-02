@@ -25,19 +25,48 @@ async def search(artist: str, name: str) -> str | None:
         return await _search(c, access_token, artist, name)
 
 
+def _strip_parenthetical(title: str) -> str:
+    """Drop a parenthetical such as "(with X)", "(feat. Y)" or "(Remastered)".
+
+    Apple Music folds featured artists into the title -- "Marechia (with Celia
+    Kameni)" where Spotify stores plain "Marechia" -- so dropping the
+    parenthetical is what makes the two catalogues agree.
+
+    Returns "" when the title opens with the paren, as in "(Don't Fear) The
+    Reaper": no usable stem is left, and callers read that as "no fallback".
+    """
+    return title.partition("(")[0].strip()
+
+
 async def _search(
     c: httpx.AsyncClient, access_token: str, artist: str, name: str
 ) -> str | None:
     """Return the link to the first matching track, or None if there is none."""
+    link = await _search_once(c, access_token, artist, name)
+    if link is not None:
+        return link
+
+    # Strictly a fallback: an exact title has to win, because stripping also
+    # discards parentheticals that genuinely name a different recording, like
+    # "(Reprise)" or "(Live)".
+    stem = _strip_parenthetical(name)
+    if not stem or stem == name.strip():
+        return None
+
+    logger.info(
+        'No match for "%s"; retrying without its parenthetical as "%s"', name, stem
+    )
+    return await _search_once(c, access_token, artist, stem)
+
+
+async def _search_once(
+    c: httpx.AsyncClient, access_token: str, artist: str, name: str
+) -> str | None:
+    """Run a single search and return the first track's link, or None."""
+    # Field filters keep artist and title from bleeding into each other.
     # Quotes are stripped so they can't terminate the filter early.
     track = name.replace('"', "")
-    # Apple Music might include feat in track title,
-    # e.g. instead of "Marechia" it will have "Marechia (with Celia Kameni)",
-    # remove feat here!
-    track = track.rstrip('(')
-
     performer = artist.replace('"', "")
-
     query = f'track:"{track}" artist:"{performer}"'
 
     try:

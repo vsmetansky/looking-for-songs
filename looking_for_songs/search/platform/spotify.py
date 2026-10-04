@@ -1,12 +1,20 @@
+import asyncio
 import logging
 import os
+import time
 
 import httpx
 
 from looking_for_songs.search.platform import errors
 
-TOKEN_URL = "https://accounts.spotify.com/api/token"
+ACCESS_TOKEN_URL = "https://accounts.spotify.com/api/token"
+ACCESS_TOKEN: str | None = None
+ACCESS_TOKEN_EXPIRES_AT = 0.0
+ACCESS_TOKEN_EXPIRY_MARGIN_S = 60  # to refresh a bit earlier just in case
+
 SEARCH_URL = "https://api.spotify.com/v1/search"
+
+_ACCESS_TOKEN_LOCK = asyncio.Lock()
 
 logger = logging.getLogger(__name__)
 
@@ -100,16 +108,36 @@ async def _search_once(
 async def _obtain_access_token(
     c: httpx.AsyncClient, client_id: str, client_secret: str
 ) -> str:
-    try:
-        resp = await c.post(
-            TOKEN_URL,
-            data={"grant_type": "client_credentials"},
-            auth=(client_id, client_secret),
-        )
-        resp.raise_for_status()
-        payload = resp.json()
-        return payload["access_token"]
-    except httpx.HTTPError as exc:
-        raise errors.UpstreamError(f"spotify auth failed: {exc}") from exc
-    except (KeyError, ValueError) as exc:
-        raise errors.UpstreamError("spotify auth returned an unexpected body") from exc
+    global ACCESS_TOKEN, ACCESS_TOKEN_EXPIRES_AT
+
+    if ACCESS_TOKEN is not None and time.monotonic() < ACCESS_TOKEN_EXPIRES_AT:
+        return ACCESS_TOKEN
+
+    async with _ACCESS_TOKEN_LOCK:
+        # a concurrent request might have obtained a fresh access token,
+        # retry returning the token from the cache
+        if ACCESS_TOKEN is not None and time.monotonic() < ACCESS_TOKEN_EXPIRES_AT:
+            return ACCESS_TOKEN
+        try:
+            resp = await c.post(
+                ACCESS_TOKEN_URL,
+                data={"grant_type": "client_credentials"},
+                auth=(client_id, client_secret),
+            )
+            resp.raise_for_status()
+            payload = resp.json()
+
+            ACCESS_TOKEN_EXPIRES_AT = (
+                time.monotonic() + payload["expires_in"] - ACCESS_TOKEN_EXPIRY_MARGIN_S
+            )
+            ACCESS_TOKEN = payload["access_token"]
+            if ACCESS_TOKEN is None:
+                raise errors.UpstreamError("spotify auth returned a null access token")
+
+            return ACCESS_TOKEN
+        except httpx.HTTPError as exc:
+            raise errors.UpstreamError(f"spotify auth failed: {exc}") from exc
+        except (KeyError, ValueError) as exc:
+            raise errors.UpstreamError(
+                "spotify auth returned an unexpected body"
+            ) from exc

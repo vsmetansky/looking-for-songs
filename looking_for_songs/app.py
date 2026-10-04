@@ -24,12 +24,12 @@ async def look(request: Request) -> JSONResponse:
     if not isinstance(body, dict) or not body:
         raise HTTPException(400, detail="Your body is empty")
 
-    artist = _required_str(body, "artist", 'Pass in `artist` in request body')
-    name = _required_str(body, "name", 'Pass in song `name` in request body')
+    artist = _required_str(body, "artist", "Pass in `artist` in request body")
+    name = _required_str(body, "name", "Pass in song `name` in request body")
     platform = _required_str(
         body,
         "platform",
-        f'Pass in `platform` in request body. Supported values: {", ".join(SUPPORTED_PLATFORMS)}',
+        f"Pass in `platform` in request body. Supported values: {', '.join(SUPPORTED_PLATFORMS)}",
     )
 
     if platform not in SUPPORTED_PLATFORMS:
